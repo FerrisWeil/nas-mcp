@@ -15,5 +15,6 @@ Run the MCP server on the Unraid host as a Docker Compose stack (Compose Manager
 
 * Deploy follows Unraid conventions: appdata for state, `/mnt/user` for user shares, `TZ` matching the Unraid UI.
 * The array must be started before the stack can see `/mnt/user`.
-* Image builds happen on the NAS unless a registry image is added later.
+* Image builds happen on the NAS unless pulling `ghcr.io/ferrisweil/nas-mcp` (see 0005).
+* The Unraid Docker template is the GUI path; Compose with a sidecar remains supported.
 * This is a home-lab PoC, not a multi-tenant service.

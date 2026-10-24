@@ -35,7 +35,7 @@ services:
 
   mcp:
     build: .
-    image: nas-mcp:local
+    image: ghcr.io/ferrisweil/nas-mcp:latest
     container_name: nas-mcp
     network_mode: service:tailscale
     depends_on:

@@ -3,6 +3,7 @@
 data
 dist
 docs
+unraid
 node_modules
 test
 .env

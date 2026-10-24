@@ -19,3 +19,7 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
+      - name: Check entrypoint and Unraid template
+        run: |
+          sh -n docker/entrypoint.sh
+          python3 -c "import xml.etree.ElementTree as ET; ET.parse('unraid/nas-mcp.xml')"

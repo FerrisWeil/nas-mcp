@@ -9,7 +9,7 @@ The server holds a window onto NAS storage metadata. It must never be reachable 
 
 ## Decision
 
-* Do not publish host ports. The MCP container uses `network_mode: service:tailscale` and shares the Tailscale sidecar's network namespace.
+* Do not publish host ports. Compose uses `network_mode: service:tailscale` with the official Tailscale sidecar. The Unraid template runs `tailscaled` in the same container (see 0005).
 * Authenticate the sidecar with `TS_AUTHKEY`, persist `/var/lib/tailscale`, and name the node `nas-mcp`.
 * Advertise `tag:nas-mcp`. A sample ACL grants `tag:bot` access only to this node's MCP ports (8787 and 443).
 * Optionally terminate HTTPS with Tailscale Serve (tailnet-only). Do not enable Funnel. `AllowFunnel` is omitted so the node is not marked as a Funnel endpoint.
