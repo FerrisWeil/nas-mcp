@@ -1,5 +1,11 @@
 # Tailnet-only MCP server for Unraid.
 # No host ports are published. Reach this stack from a Tailscale node, not the LAN.
+#
+# container_name values must be free on the host. Do not also run the Unraid
+# template, which uses the name nas-mcp for its single container.
+#
+# If this sidecar restarts, the MCP container's shared network namespace is gone
+# until you run `docker compose up -d` again.
 
 services:
   tailscale:
@@ -15,7 +21,9 @@ services:
       TS_EXTRA_ARGS: --advertise-tags=tag:nas-mcp
       # Tailnet-only HTTPS. Requires MagicDNS + HTTPS certificates in the admin console.
       # This is Serve, not Funnel: it is not reachable from the public internet.
+      # tailscale/serve.json proxies :443 to http://127.0.0.1:8787.
       TS_SERVE_CONFIG: /config/serve.json
+      # 41234 is only the sidecar's /healthz listener. It is not the MCP port.
       TS_ENABLE_HEALTH_CHECK: "true"
       TS_LOCAL_ADDR_PORT: 127.0.0.1:41234
     volumes:
@@ -25,12 +33,16 @@ services:
       - /dev/net/tun:/dev/net/tun
     cap_add:
       - net_admin
+    # /healthz answers only after the node has a tailnet IP. A bad auth key
+    # stays unhealthy on purpose so mcp does not start off-tailnet.
+    # First login (control plane, optional HTTPS cert) gets two minutes before
+    # failures count, then another ~2.5 minutes before a restart.
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:41234/healthz"]
-      interval: 15s
+      interval: 30s
       timeout: 5s
-      retries: 10
-      start_period: 15s
+      retries: 5
+      start_period: 120s
     restart: unless-stopped
 
   mcp:
@@ -49,6 +61,7 @@ services:
       TZ: ${TZ:-UTC}
       DISK_PATHS: /data/user
     volumes:
+      # FUSE user-share view. get_disk_usage only calls statfs on this path.
       - /mnt/user:/data/user:ro
       # Optional Unraid cache pool. Uncomment both lines if /mnt/cache exists.
       # - /mnt/cache:/data/cache:ro

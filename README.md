@@ -52,6 +52,8 @@ docker compose logs -f
 
 `--build` uses the local Dockerfile if GHCR is still private. The sidecar appears on the Tailscale Machines page as `nas-mcp`. Disable key expiry on that node.
 
+The MCP container waits until the sidecar's `/healthz` (port **41234**, not 8787) reports a tailnet IP. First login is allowed about four minutes. A bad `TS_AUTHKEY` leaves the sidecar restarting and MCP stopped. `tailscale/serve.json` already proxies tailnet HTTPS `:443` to `http://127.0.0.1:8787`. After the sidecar itself restarts, run `docker compose up -d` again so MCP reattaches to its network namespace. Container names are `nas-mcp-tailscale` and `nas-mcp`; do not run the Unraid template at the same time. `/mnt/user` is the right disk for this tool: it only calls `statfs` on that mount.
+
 ## Test (either path)
 
 From another tailnet device:
