@@ -1,0 +1,14 @@
+.git
+.github
+data
+dist
+docs
+unraid
+node_modules
+test
+.env
+.env.*
+!.env.example
+*.md
+*.log
+.DS_Store

@@ -1,0 +1,87 @@
+# Tailnet-only MCP server for Unraid.
+# No host ports are published. Reach this stack from a Tailscale node, not the LAN.
+#
+# container_name values must be free on the host. Do not also run the Unraid
+# template, which uses the name nas-mcp for its single container.
+#
+# If this sidecar restarts, the MCP container's shared network namespace is gone
+# until you run `docker compose up -d` again.
+
+services:
+  tailscale:
+    image: tailscale/tailscale:stable
+    container_name: nas-mcp-tailscale
+    hostname: nas-mcp
+    environment:
+      TS_AUTHKEY: ${TS_AUTHKEY:?Set TS_AUTHKEY in .env}
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_AUTH_ONCE: "true"
+      TS_USERSPACE: "false"
+      TS_HOSTNAME: nas-mcp
+      TS_EXTRA_ARGS: --advertise-tags=tag:nas-mcp
+      # Tailnet-only HTTPS. Requires MagicDNS + HTTPS certificates in the admin console.
+      # This is Serve, not Funnel: it is not reachable from the public internet.
+      # tailscale/serve.json proxies :443 to http://127.0.0.1:8787.
+      TS_SERVE_CONFIG: /config/serve.json
+      # 41234 is only the sidecar's /healthz listener. It is not the MCP port.
+      TS_ENABLE_HEALTH_CHECK: "true"
+      TS_LOCAL_ADDR_PORT: 127.0.0.1:41234
+    volumes:
+      - ./data/tailscale-state:/var/lib/tailscale
+      - ./tailscale:/config:ro
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - net_admin
+    # /healthz answers only after the node has a tailnet IP. A bad auth key
+    # stays unhealthy on purpose so mcp does not start off-tailnet.
+    # First login (control plane, optional HTTPS cert) gets two minutes before
+    # failures count, then another ~2.5 minutes before a restart.
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:41234/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 120s
+    restart: unless-stopped
+
+  mcp:
+    build: .
+    image: ghcr.io/ferrisweil/nas-mcp:latest
+    container_name: nas-mcp
+    network_mode: service:tailscale
+    depends_on:
+      tailscale:
+        condition: service_healthy
+    environment:
+      MCP_AUTH_TOKEN: ${MCP_AUTH_TOKEN:?Set MCP_AUTH_TOKEN in .env}
+      MCP_HOSTNAME: nas-mcp
+      BIND_HOST: "0.0.0.0"
+      PORT: "8787"
+      TZ: ${TZ:-UTC}
+      DISK_PATHS: /data/user
+    volumes:
+      # FUSE user-share view. get_disk_usage only calls statfs on this path.
+      - /mnt/user:/data/user:ro
+      # Optional Unraid cache pool. Uncomment both lines if /mnt/cache exists.
+      # - /mnt/cache:/data/cache:ro
+      # And set DISK_PATHS: /data/user,/data/cache
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:8787/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    init: true

@@ -1,0 +1,36 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>nas-mcp</Name>
+  <Repository>ghcr.io/ferrisweil/nas-mcp:latest</Repository>
+  <Registry>https://github.com/FerrisWeil/nas-mcp/pkgs/container/nas-mcp</Registry>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/FerrisWeil/nas-mcp/issues</Support>
+  <Project>https://github.com/FerrisWeil/nas-mcp</Project>
+  <ReadMe>https://github.com/FerrisWeil/nas-mcp/blob/main/docs/unraid-setup.md</ReadMe>
+  <Overview>Read-only MCP server for this Unraid NAS. It joins your Tailscale tailnet as hostname nas-mcp and is not published on LAN ports or the public internet. Do not add port mappings. Follow docs/unraid-setup.md: make the GHCR package public, create a tagged auth key, generate MCP_AUTH_TOKEN, then apply.</Overview>
+  <Description>Read-only MCP server for this Unraid NAS, reachable only on your Tailscale tailnet. No host ports. See docs/unraid-setup.md.</Description>
+  <Category>Tools:Utilities Network:VPN</Category>
+  <WebUI/>
+  <TemplateURL>https://raw.githubusercontent.com/FerrisWeil/nas-mcp/main/unraid/nas-mcp.xml</TemplateURL>
+  <Icon>/plugins/dynamix.docker.manager/images/question.png</Icon>
+  <ExtraParams>--cap-add=NET_ADMIN --init</ExtraParams>
+  <PostArgs/>
+  <Requires>Public GHCR image ghcr.io/ferrisweil/nas-mcp:latest. Tailscale auth key tagged tag:nas-mcp. Do not map host ports. /dev/net/tun must exist on the Unraid host.</Requires>
+  <Config Name="MCP Auth Token" Target="MCP_AUTH_TOKEN" Default="" Mode="" Description="Bearer token required on every MCP request. Generate with: openssl rand -hex 32" Type="Variable" Display="always" Required="true" Mask="true"/>
+  <Config Name="Tailscale Auth Key" Target="TS_AUTHKEY" Default="" Mode="" Description="Reusable, non-ephemeral Tailscale auth key tagged tag:nas-mcp. Create at https://login.tailscale.com/admin/settings/keys" Type="Variable" Display="always" Required="true" Mask="true"/>
+  <Config Name="Tailscale Hostname" Target="TS_HOSTNAME" Default="nas-mcp" Mode="" Description="MagicDNS name advertised on the tailnet" Type="Variable" Display="always" Required="true" Mask="false">nas-mcp</Config>
+  <Config Name="Timezone" Target="TZ" Default="UTC" Mode="" Description="IANA timezone matching Unraid Settings → Date and Time, e.g. America/Chicago" Type="Variable" Display="always" Required="false" Mask="false">UTC</Config>
+  <Config Name="Appdata (Tailscale state)" Target="/var/lib/tailscale" Default="/mnt/user/appdata/nas-mcp/tailscale-state" Mode="rw" Description="Must persist so the node stays logged in across container updates. Keep this on the array/cache, not the USB flash drive." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/nas-mcp/tailscale-state</Config>
+  <Config Name="User shares (read-only)" Target="/data/user" Default="/mnt/user" Mode="ro" Description="Unraid user shares, bind-mounted read-only for get_disk_usage" Type="Path" Display="always" Required="true" Mask="false">/mnt/user</Config>
+  <Config Name="TUN device" Target="/dev/net/tun" Default="/dev/net/tun" Mode="" Description="Required for Tailscale kernel networking so port 8787 is reachable on the tailnet IP" Type="Device" Display="advanced" Required="true" Mask="false">/dev/net/tun</Config>
+  <Config Name="Listen address" Target="BIND_HOST" Default="0.0.0.0" Mode="" Description="0.0.0.0 exposes the MCP port on the tailnet. No host ports are published." Type="Variable" Display="advanced" Required="false" Mask="false">0.0.0.0</Config>
+  <Config Name="MCP Port" Target="PORT" Default="8787" Mode="" Description="Container listen port. Do not add a Unraid port mapping for this." Type="Variable" Display="advanced" Required="false" Mask="false">8787</Config>
+  <Config Name="Disk paths" Target="DISK_PATHS" Default="/data/user" Mode="" Description="Comma-separated paths inside the container reported by get_disk_usage" Type="Variable" Display="advanced" Required="false" Mask="false">/data/user</Config>
+  <Config Name="MCP hostname allowlist" Target="MCP_HOSTNAME" Default="nas-mcp" Mode="" Description="Allowed HTTP Host name in addition to *.ts.net and Tailscale IPs" Type="Variable" Display="advanced" Required="false" Mask="false">nas-mcp</Config>
+  <Config Name="Tailscale extra args" Target="TS_EXTRA_ARGS" Default="--advertise-tags=tag:nas-mcp" Mode="" Description="Passed to tailscale up. Keep the nas-mcp tag unless you changed the ACL." Type="Variable" Display="advanced" Required="false" Mask="false">--advertise-tags=tag:nas-mcp</Config>
+  <Config Name="Tailscale Serve" Target="TS_SERVE" Default="true|false" Mode="" Description="If true, also serve HTTPS on tailnet :443 (Serve, not Funnel). Needs MagicDNS + HTTPS certificates." Type="Variable" Display="advanced" Required="false" Mask="false">true</Config>
+  <Config Name="Tailscale userspace" Target="TS_USERSPACE" Default="false|true" Mode="" Description="Set true only if /dev/net/tun cannot be used. Then bind 127.0.0.1 and rely on Serve for inbound access." Type="Variable" Display="advanced" Required="false" Mask="false">false</Config>
+</Container>
