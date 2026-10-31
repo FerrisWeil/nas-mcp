@@ -16,7 +16,7 @@
   <WebUI/>
   <TemplateURL>https://raw.githubusercontent.com/FerrisWeil/nas-mcp/main/unraid/nas-mcp.xml</TemplateURL>
   <Icon>/plugins/dynamix.docker.manager/images/question.png</Icon>
-  <ExtraParams>--cap-add=NET_ADMIN --init</ExtraParams>
+  <ExtraParams>--cap-add=NET_ADMIN --init --log-opt max-size=10m --log-opt max-file=3</ExtraParams>
   <PostArgs/>
   <Requires>Public GHCR image ghcr.io/ferrisweil/nas-mcp:latest. Tailscale auth key tagged tag:nas-mcp. Do not map host ports. /dev/net/tun must exist on the Unraid host.</Requires>
   <Config Name="MCP Auth Token" Target="MCP_AUTH_TOKEN" Default="" Mode="" Description="Bearer token required on every MCP request. Generate with: openssl rand -hex 32" Type="Variable" Display="always" Required="true" Mask="true"/>

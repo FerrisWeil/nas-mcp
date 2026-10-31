@@ -5,11 +5,16 @@ export type ServerTime = {
   utcOffset: string;
 };
 
+export function serverTimeZone(env: NodeJS.Dict<string> = process.env): string {
+  const configured = env.TZ?.trim();
+  if (configured) {
+    return configured;
+  }
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+}
+
 export function getServerTime(now: Date = new Date()): ServerTime {
-  const timeZone =
-    process.env.TZ?.trim() ||
-    Intl.DateTimeFormat().resolvedOptions().timeZone ||
-    "UTC";
+  const timeZone = serverTimeZone();
   const offsetMinutes = -now.getTimezoneOffset();
   const sign = offsetMinutes >= 0 ? "+" : "-";
   const absolute = Math.abs(offsetMinutes);

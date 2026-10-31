@@ -65,8 +65,10 @@ if [ "$TS_USERSPACE" = "true" ]; then
   TUN_ARGS="--tun=userspace-networking"
 fi
 
+# --verbose=1 timestamps daemon lines and shows why a tailnet path failed.
+# The auth key is an argument to `tailscale up` below and is never echoed.
 # shellcheck disable=SC2086
-tailscaled $TUN_ARGS --statedir="$STATE_DIR" --socket="$TS_SOCKET" &
+tailscaled $TUN_ARGS --verbose=1 --statedir="$STATE_DIR" --socket="$TS_SOCKET" &
 TS_PID=$!
 
 i=0
