@@ -217,6 +217,8 @@ Transport **Streamable HTTP**, URL `http://nas-mcp:8787/mcp`, header `Authorizat
 
 ## Troubleshooting
 
+**A client call failed.** Docker tab → `nas-mcp` → the log icon. Confirm a JSON `request` line for that call (`auth`, `status`, `mcpMethod`, `tool`). No `request` line means the connection never reached the MCP process; scroll the same log for `tailscaled` (verbosity 1). `/health` lines with `auth: missing` are the container healthcheck, which does not send the bearer token. Field meanings, the Compose sidecar's second log (`nas-mcp-tailscale`), and `docker logs -t` are in the [README troubleshooting section](../README.md#troubleshooting).
+
 **`unauthorized` / `denied` pulling the image**  
 The GHCR package is still private (step 1) or you typed the name wrong. It is `ghcr.io/ferrisweil/nas-mcp:latest` (all lowercase).
 

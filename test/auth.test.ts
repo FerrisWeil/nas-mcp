@@ -41,7 +41,19 @@ describe("http auth", () => {
   it("serves /health without a token", async () => {
     const response = await fetch(`${baseUrl}/health`);
     assert.equal(response.status, 200);
-    assert.deepEqual(await response.json(), { status: "ok" });
+    const body = (await response.json()) as {
+      status: string;
+      uptimeSeconds: number;
+      mounts: Array<{ path: string; readable: boolean }>;
+    };
+    assert.equal(body.status, "ok");
+    assert.equal(Number.isInteger(body.uptimeSeconds), true);
+    assert.ok(body.uptimeSeconds >= 0);
+    assert.ok(body.mounts.length > 0);
+    assert.equal(
+      body.mounts.every((mount) => mount.readable),
+      true,
+    );
   });
 
   it("rejects /mcp when the token is missing", async () => {

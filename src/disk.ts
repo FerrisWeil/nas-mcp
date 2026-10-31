@@ -8,7 +8,9 @@ export type DiskUsage = {
   usedPercent: number;
 };
 
-export type DiskUsageResult = DiskUsage | { path: string; error: string };
+export type DiskUsageResult =
+  | DiskUsage
+  | { path: string; error: string; stack?: string };
 
 function roundPercent(used: number, total: number): number {
   if (total <= 0) {
@@ -32,7 +34,8 @@ export async function getDiskUsage(path: string): Promise<DiskUsageResult> {
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    return { path, error: message };
+    const stack = error instanceof Error ? error.stack : undefined;
+    return stack ? { path, error: message, stack } : { path, error: message };
   }
 }
 

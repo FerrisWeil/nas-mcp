@@ -2,7 +2,9 @@ import { createMcpHandler, McpServer } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 
 import type { Config } from "./config.js";
+import type { DiskUsageResult } from "./disk.js";
 import { getDiskUsageForPaths } from "./disk.js";
+import { consoleLogger, formatToolErrorLog, type Logger } from "./log.js";
 import { getServerTime } from "./time.js";
 
 const serverTimeSchema = z.object({
@@ -32,7 +34,25 @@ const readOnly = {
   openWorldHint: false,
 } as const;
 
-export function createNasMcpServer(config: Config): McpServer {
+function clientMount(mount: DiskUsageResult): DiskUsageResult {
+  if ("error" in mount) {
+    return { path: mount.path, error: mount.error };
+  }
+  return mount;
+}
+
+function logToolFailure(logger: Logger, tool: string, error: unknown, path?: string): void {
+  logger.error(
+    formatToolErrorLog({
+      ts: new Date().toISOString(),
+      tool,
+      error,
+      path,
+    }),
+  );
+}
+
+export function createNasMcpServer(config: Config, logger: Logger = consoleLogger): McpServer {
   const server = new McpServer(
     {
       name: "nas-mcp",
@@ -56,16 +76,21 @@ export function createNasMcpServer(config: Config): McpServer {
       annotations: readOnly,
     },
     async () => {
-      const time = getServerTime();
-      return {
-        content: [
-          {
-            type: "text",
-            text: `${time.iso} (${time.timeZone}, UTC${time.utcOffset})`,
-          },
-        ],
-        structuredContent: time,
-      };
+      try {
+        const time = getServerTime();
+        return {
+          content: [
+            {
+              type: "text",
+              text: `${time.iso} (${time.timeZone}, UTC${time.utcOffset})`,
+            },
+          ],
+          structuredContent: time,
+        };
+      } catch (error) {
+        logToolFailure(logger, "get_server_time", error);
+        throw error;
+      }
     },
   );
 
@@ -80,22 +105,37 @@ export function createNasMcpServer(config: Config): McpServer {
       annotations: readOnly,
     },
     async () => {
-      const mounts = await getDiskUsageForPaths(config.diskPaths);
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(mounts, null, 2),
-          },
-        ],
-        structuredContent: { mounts },
-      };
+      try {
+        const mounts = await getDiskUsageForPaths(config.diskPaths);
+        const reported = mounts.map((mount) => {
+          if ("error" in mount) {
+            const failure = new Error(mount.error);
+            if (mount.stack) {
+              failure.stack = mount.stack;
+            }
+            logToolFailure(logger, "get_disk_usage", failure, mount.path);
+          }
+          return clientMount(mount);
+        });
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(reported, null, 2),
+            },
+          ],
+          structuredContent: { mounts: reported },
+        };
+      } catch (error) {
+        logToolFailure(logger, "get_disk_usage", error);
+        throw error;
+      }
     },
   );
 
   return server;
 }
 
-export function createNasMcpHandler(config: Config) {
-  return createMcpHandler(() => createNasMcpServer(config));
+export function createNasMcpHandler(config: Config, logger: Logger = consoleLogger) {
+  return createMcpHandler(() => createNasMcpServer(config, logger));
 }

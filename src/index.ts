@@ -1,5 +1,8 @@
 import { loadConfig, type Config } from "./config.js";
 import { listen } from "./http.js";
+import { consoleLogger, createRedactingLogger, formatStartupLog } from "./log.js";
+import { serverTimeZone } from "./time.js";
+import { VERSION } from "./version.js";
 
 let config: Config;
 try {
@@ -10,14 +13,28 @@ try {
   process.exit(1);
 }
 
-const { server, url } = await listen(config);
+const logger = createRedactingLogger(consoleLogger, [config.authToken]);
+const { server } = await listen(config, { logger });
 
-console.log(
-  `nas-mcp listening on ${config.bindHost}:${config.port} (${url}/mcp)`,
+logger.info(
+  formatStartupLog({
+    ts: new Date().toISOString(),
+    version: VERSION,
+    listen: `${config.bindHost}:${config.port}`,
+    mounts: config.diskPaths,
+    timeZone: serverTimeZone(),
+  }),
 );
 
 async function shutdown(signal: string): Promise<void> {
-  console.log(`received ${signal}, shutting down`);
+  logger.info(
+    JSON.stringify({
+      ts: new Date().toISOString(),
+      level: "info",
+      msg: "shutdown",
+      signal,
+    }),
+  );
   await new Promise<void>((resolve) => {
     server.close(() => resolve());
   });

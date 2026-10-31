@@ -62,7 +62,7 @@ From another tailnet device:
 curl -sS http://nas-mcp:8787/health
 ```
 
-MCP requires the bearer token (`401` without it). Inspector: `npx @modelcontextprotocol/inspector`, Streamable HTTP, `http://nas-mcp:8787/mcp`, header `Authorization: Bearer <token>`. Full curl examples are in [docs/unraid-setup.md](docs/unraid-setup.md).
+`/health` does not need the bearer token. The JSON body has `status` (`ok` when every configured mount is readable, otherwise `degraded`), `uptimeSeconds`, and `mounts` (`path` plus `readable`). HTTP status stays 200 so the container healthcheck means the process is serving. MCP requires the bearer token (`401` without it). Inspector: `npx @modelcontextprotocol/inspector`, Streamable HTTP, `http://nas-mcp:8787/mcp`, header `Authorization: Bearer <token>`. Full curl examples are in [docs/unraid-setup.md](docs/unraid-setup.md).
 
 ## Environment variables
 
@@ -104,11 +104,57 @@ MCP_AUTH_TOKEN=$(openssl rand -hex 32) npm run dev
 
 The process listens on `127.0.0.1:8787` unless you set `BIND_HOST`. Do not expose that port on a public interface.
 
+## Troubleshooting
+
+When a client call fails, read the container logs before changing Tailscale or the token. Logs go to stdout. The MCP process does not write a log file (the root filesystem is read-only). Nothing in these lines is the bearer token or a Tailscale auth key: auth is only `ok`, `missing`, or `invalid`.
+
+### Where to look
+
+**Unraid template (one container).** Docker tab → row `nas-mcp` → log icon. That stream mixes MCP JSON lines and `tailscaled` (verbosity 1, its own timestamps). The template's extra parameters cap Docker's json log at 10MB × 3 files.
+
+**Compose sidecar (two containers).** Docker tab shows `nas-mcp` and `nas-mcp-tailscale`. Open the log icon on each row. MCP lines are only on `nas-mcp`. Tailnet login, Serve, and netmap lines are only on `nas-mcp-tailscale` (`TS_TAILSCALED_EXTRA_ARGS=--verbose=1`). Compose rotates both logs at 10MB × 3 files.
+
+From the Unraid terminal, the same streams with the Docker collector's timestamp on every line:
+
+```bash
+docker logs -t --tail 200 nas-mcp
+docker logs -t --tail 200 nas-mcp-tailscale
+```
+
+### What each MCP line means
+
+Every line is one JSON object.
+
+| `msg` | When it appears |
+| --- | --- |
+| `startup` | Process is listening. `version`, `listen` (`BIND_HOST:PORT`), `mounts`, `timeZone`. |
+| `request` | One per HTTP request, after the response finishes. |
+| `slow_request` | A non-GET call took at least 2s, or was still open at 2s. `durationMs` is how long it had been running. |
+| `tool_error` | A tool threw, or `get_disk_usage` could not `statfs` a mount. `error` and `stack` are for the operator; the client still gets the short error string, not the stack. |
+| `mount_unreadable` | `/health` found a configured path that is not readable. |
+| `server_error` | The HTTP adapter failed while handling `/mcp`. |
+| `shutdown` | `SIGTERM` or `SIGINT`. |
+
+`request` fields:
+
+| Field | Meaning |
+| --- | --- |
+| `ts` | UTC ISO-8601 time |
+| `method`, `path` | HTTP method and path (`/mcp` or `/health`) |
+| `mcpMethod` | JSON-RPC method (`initialize`, `tools/list`, `tools/call`, …) when the body was JSON. Absent on `/health`, GET, and any request rejected before the body is read. |
+| `tool` | `params.name` for `tools/call` only. Arguments are not logged. |
+| `status` | HTTP status sent to the client |
+| `durationMs` | Time until the response finished |
+| `remoteAddress` | TCP peer. Direct `http://nas-mcp:8787` shows the tailnet address. Traffic through Tailscale Serve is proxied from `127.0.0.1`, so this field is `127.0.0.1` for `https://…ts.net`. |
+| `auth` | `ok` (bearer matched), `missing` (no `Authorization` header), or `invalid` (header present but not the configured bearer). `/health` is unauthenticated, so the healthcheck line every 30s with `auth: missing` is expected. A wrong token is `invalid` and `status: 401`. |
+
+No log line is written for a connection that never reaches the process. If the client times out and `nas-mcp` has no `request` line, the failure is in front of the server: Tailscale (sidecar or in-process `tailscaled`), Serve, DNS, or a firewall. Use the Tailscale log for that, then confirm `/health` from a tailnet device.
+
 ## Layout
 
 ```
-src/                 TypeScript server (auth, health, two tools)
-test/                Auth rejection + tool tests
+src/                 TypeScript server (auth, health, request logs, two tools)
+test/                Auth rejection, log redaction, and tool tests
 docker/entrypoint.sh Starts tailscaled only when TS_AUTHKEY is set
 unraid/nas-mcp.xml   Unraid Docker template (single container)
 tailscale/           Serve config for the Compose sidecar

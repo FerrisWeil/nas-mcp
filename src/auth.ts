@@ -19,15 +19,30 @@ export function bearerTokenFromHeader(
   return match?.[1] ?? null;
 }
 
+export function authorizationHeader(
+  req: IncomingMessage,
+): string | undefined {
+  const header = req.headers.authorization;
+  return Array.isArray(header) ? header[0] : header;
+}
+
+export function classifyAuthorization(
+  authorization: string | undefined,
+  expectedToken: string,
+): "ok" | "missing" | "invalid" {
+  if (!authorization?.trim()) {
+    return "missing";
+  }
+  const token = bearerTokenFromHeader(authorization);
+  if (!token) {
+    return "invalid";
+  }
+  return tokensEqual(token, expectedToken) ? "ok" : "invalid";
+}
+
 export function requestHasValidBearer(
   req: IncomingMessage,
   expectedToken: string,
 ): boolean {
-  const header = req.headers.authorization;
-  const value = Array.isArray(header) ? header[0] : header;
-  const token = bearerTokenFromHeader(value);
-  if (!token) {
-    return false;
-  }
-  return tokensEqual(token, expectedToken);
+  return classifyAuthorization(authorizationHeader(req), expectedToken) === "ok";
 }
